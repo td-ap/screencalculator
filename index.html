@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Screen Calculator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Screen Calculator</h1>
+  <form id="calculator-form">
+    <label for="calculation-mode">Choose Calculation Mode:</label>
+    <select id="calculation-mode">
+      <option value="" disabled selected>Select Mode</option>
+      <option value="by-size">By Size</option>
+      <option value="by-cabinet">By Cabinet</option>
+    </select>
+
+    <div id="module-type-container" style="display: none;">
+      <label for="module-type">Select Module Type:</label>
+      <select id="module-type"></select>
+    </div>
+
+    <div id="pixel-pitch-container" style="display: none;">
+      <label for="pixel-pitch">Select Pixel Pitch:</label>
+      <select id="pixel-pitch"></select>
+    </div>
+
+    <div id="measurement-type-container" style="display: none;">
+      <label for="measurement-type">Select Measurement Type:</label>
+      <select id="measurement-type">
+        <option value="" disabled selected>Choose One</option>
+        <option value="mm">Millimeters</option>
+        <option value="inches">Inches</option>
+        <option value="feet">Feet</option>
+      </select>
+    </div>
+
+    <div id="dimensions-container" style="display: none;">
+      <div class="dimensions-input">
+        <label for="length">Length:</label>
+        <input type="number" id="length" placeholder="Enter length">
+      </div>
+      <div class="dimensions-input">
+        <label for="height">Height:</label>
+        <input type="number" id="height" placeholder="Enter height">
+      </div>
+    </div>
+
+    <button type="button" id="calculate-button" style="display: none;">Calculate</button>
+    <button type="button" id="reset-button" style="display: none;">Reset</button>
+  </form>
+
+  <div id="results-container"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-firestore-compat.js"></script>
+  <script>
+    // Initialize Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2NKzk3eLn6WHy0r_WlsHwaGVo8en8o00",
+      authDomain: "screencalculator.firebaseapp.com",
+      projectId: "screencalculator",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Element References
+    const calculationMode = document.getElementById('calculation-mode');
+    const moduleTypeContainer = document.getElementById('module-type-container');
+    const moduleType = document.getElementById('module-type');
+    const pixelPitchContainer = document.getElementById('pixel-pitch-container');
+    const pixelPitch = document.getElementById('pixel-pitch');
+    const measurementTypeContainer = document.getElementById('measurement-type-container');
+    const measurementType = document.getElementById('measurement-type');
+    const dimensionsContainer = document.getElementById('dimensions-container');
+    const calculateButton = document.getElementById('calculate-button');
+    const resetButton = document.getElementById('reset-button');
+    const resultsContainer = document.getElementById('results-container');
+
+    // Fetch Module Types
+    const fetchModuleTypes = async () => {
+      const snapshot = await db.collection('moduleTypes').get();
+      const modules = [];
+      snapshot.forEach((doc) => {
+        modules.push({ id: doc.id, ...doc.data() });
+      });
+      return modules;
+    };
+
+    // Populate Module Type Dropdown
+    const populateModuleTypeDropdown = async () => {
+      const modules = await fetchModuleTypes();
+      moduleType.innerHTML = '<option value="" disabled selected>Select Module Type</option>';
+      modules.forEach((module) => {
+        const option = document.createElement('option');
+        option.value = module.id;
+        option.textContent = module.name;
+        moduleType.appendChild(option);
+      });
+      moduleTypeContainer.style.display = 'block';
+    };
+
+    // Populate Pixel Pitch Dropdown
+    const populatePixelPitchDropdown = (pixelSpecs) => {
+      pixelPitch.innerHTML = '<option value="" disabled selected>Select Pixel Pitch</option>';
+      Object.keys(pixelSpecs).forEach((pitch) => {
+        const option = document.createElement('option');
+        option.value = pitch;
+        option.textContent = pitch;
+        pixelPitch.appendChild(option);
+      });
+      pixelPitchContainer.style.display = 'block';
+    };
+
+    // Unit Conversion Logic
+    const convertToMillimeters = (value, unit) => {
+      if (unit === 'inches') return value * 25.4;
+      if (unit === 'feet') return value * 304.8;
+      return value; // Already in mm
+    };
+
+    const convertToInches = (mm) => (mm * 0.0393701).toFixed(2);
+    const convertToFeet = (inches) => (inches / 12).toFixed(2);
+
+    // Event Listeners
+    calculationMode.addEventListener('change', (event) => {
+      if (event.target.value === 'by-size') {
+        populateModuleTypeDropdown();
+      }
+    });
+
+    moduleType.addEventListener('change', async (event) => {
+      const selectedModuleId = event.target.value;
+      const moduleDoc = await db.collection('moduleTypes').doc(selectedModuleId).get();
+      const selectedModule = moduleDoc.data();
+      populatePixelPitchDropdown(selectedModule.pixelSpecs);
+    });
+
+    pixelPitch.addEventListener('change', () => {
+      measurementTypeContainer.style.display = 'block';
+    });
+
+    measurementType.addEventListener('change', (event) => {
+      if (event.target.value) {
+        dimensionsContainer.style.display = 'block';
+        calculateButton.style.display = 'block';
+        resetButton.style.display = 'block';
+      } else {
+        dimensionsContainer.style.display = 'none';
+        calculateButton.style.display = 'none';
+      }
+    });
+
+    // Handle Calculation
+    calculateButton.addEventListener('click', async () => {
+      const selectedModuleId = moduleType.value;
+      const selectedPixelPitch = pixelPitch.value;
+      const measurementTypeValue = measurementType.value;
+
+      if (!measurementTypeValue) {
+        alert("Please select a measurement type.");
+        return;
+      }
+
+      const length = parseFloat(document.getElementById('length').value);
+      const height = parseFloat(document.getElementById('height').value);
+
+      if (!length || !height) {
+        alert("Please provide valid dimensions.");
+        return;
+      }
+
+      // Convert dimensions to millimeters
+      const lengthInMM = convertToMillimeters(length, measurementTypeValue);
+      const heightInMM = convertToMillimeters(height, measurementTypeValue);
+
+      // Fetch selected module data
+      const moduleDoc = await db.collection('moduleTypes').doc(selectedModuleId).get();
+      const moduleData = moduleDoc.data();
+
+      const totalModulesPerCabinet = moduleData?.cabinetSpecs?.totalModules;
+      const pixelSpec = moduleData.pixelSpecs[selectedPixelPitch];
+      const cabinetWeight = pixelSpec.cabinetWeight; // Fetch cabinet weight
+
+      // Cabinet dimensions
+      const cabinetLength = pixelSpec.cabinetLength;
+      const cabinetHeight = pixelSpec.cabinetHeight;
+
+      // Calculate Cabinets for Length and Height (nearest whole number)
+      const cabinetsForLength = Math.round(lengthInMM / cabinetLength);
+      const cabinetsForHeight = Math.round(heightInMM / cabinetHeight);
+
+      // Calculate Total Cabinets, Total Modules, and Total Weight
+      const totalCabinets = cabinetsForLength * cabinetsForHeight;
+      const totalModules = totalCabinets * totalModulesPerCabinet;
+      const totalWeight = (totalCabinets * cabinetWeight).toFixed(2); // Total weight in kilograms
+
+      // Calculate Total Power
+      const totalPower = totalCabinets * pixelSpec.cabinetMaxPower;
+
+      // Calculate Amperage for 110V and 220V
+      const amperage110 = Math.ceil(totalPower / 110);
+      const amperage220 = Math.ceil(totalPower / 220);
+
+      // Calculate Total Screen Area in mm² and m²
+      const totalScreenAreaMM = cabinetLength * cabinetHeight * totalCabinets;
+      const totalScreenAreaM2 = (totalScreenAreaMM / 1_000_000).toFixed(2);
+
+      // Calculate Total Pixel Density
+      const totalPixelDensity = totalCabinets * pixelSpec.cabinetPixelDen;
+
+      // Calculate Total Length and Width in inches/feet
+      const totalLengthMM = cabinetsForLength * cabinetLength;
+      const totalHeightMM = cabinetsForHeight * cabinetHeight;
+
+      const totalLengthInches = convertToInches(totalLengthMM);
+      const totalHeightInches = convertToInches(totalHeightMM);
+
+      const totalLengthFeet = convertToFeet(totalLengthInches);
+      const totalHeightFeet = convertToFeet(totalHeightInches);
+
+      // Display Results
+      resultsContainer.innerHTML = `
+        <h3>Results:</h3>
+        <p>Total Cabinets: ${totalCabinets}</p>
+        <p>Columns of Cabinets: ${cabinetsForLength}</p>
+        <p>Rows of Cabinets: ${cabinetsForHeight}</p>
+        <p>Total Modules: ${totalModules}</p>
+        <p>Total Weight: ${totalWeight} kg</p>
+        <p>Total Power Consumption: ${totalPower} W</p>
+        <p>Amperage @ 110V: ${amperage110} A</p>
+        <p>Amperage @ 220V: ${amperage220} A</p>
+        <p>Total Screen Area: ${totalScreenAreaM2} m² (${totalScreenAreaMM} mm²)</p>
+        <p>Total Pixel Density: ${totalPixelDensity} pixels</p>
+        <p>Total Length: ${totalLengthInches} inches (${totalLengthFeet} feet)</p>
+        <p>Total Height: ${totalHeightInches} inches (${totalHeightFeet} feet)</p>
+      `;
+    });
+
+    // Handle Reset
+    resetButton.addEventListener('click', () => {
+      calculationMode.value = "";
+      moduleType.innerHTML = "";
+      pixelPitch.innerHTML = "";
+      measurementType.value = "";
+      dimensionsContainer.style.display = "none";
+      calculateButton.style.display = "none";
+      resetButton.style.display = "none";
+      resultsContainer.innerHTML = "";
+    });
+  </script>
+</body>
+</html>
