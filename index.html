@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Screen Calculator</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js"></script>
+
 </head>
+
 <body>
   <h1>Screen Calculator</h1>
   <form id="calculator-form">
@@ -52,6 +56,8 @@
   </form>
 
   <div id="results-container"></div>
+
+
 
   <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-firestore-compat.js"></script>
@@ -182,11 +188,12 @@
       const totalModulesPerCabinet = moduleData?.cabinetSpecs?.totalModules;
       const pixelSpec = moduleData.pixelSpecs[selectedPixelPitch];
       const cabinetWeight = pixelSpec.cabinetWeight; // Fetch cabinet weight
+      console.log(pixelSpec);
 
       // Cabinet dimensions
       const cabinetLength = pixelSpec.cabinetLength;
       const cabinetHeight = pixelSpec.cabinetHeight;
-
+      console.log("cabnit terwtata: ", cabinetLength, cabinetHeight);
       // Calculate Cabinets for Length and Height (nearest whole number)
       const cabinetsForLength = Math.round(lengthInMM / cabinetLength);
       const cabinetsForHeight = Math.round(heightInMM / cabinetHeight);
@@ -236,6 +243,25 @@
         <p>Total Length: ${totalLengthInches} inches (${totalLengthFeet} feet)</p>
         <p>Total Height: ${totalHeightInches} inches (${totalHeightFeet} feet)</p>
       `;
+
+      // Make video wall visible
+      document.querySelector('.border-container').style.display = 'flex';
+      // Send values to video wall script
+      window.horizontalCabinets = cabinetsForLength;
+      window.verticalCabinets = cabinetsForHeight;
+
+      //Change cabinet dimensions
+      window.cabinetWidth = cabinetLength;
+      window.cabinetHeight = cabinetHeight;
+      window.pixelPitch = parseFloat(selectedPixelPitch.replace("P", ""));
+
+
+      // Call the function to update the PixiJS video wall
+      if (window.updateCabinetDimensions) {
+        window.updateCabinetDimensions(cabinetLength, cabinetHeight, cabinetsForLength, cabinetsForHeight, window.pixelPitch);
+      }
+
+
     });
 
     // Handle Reset
@@ -248,7 +274,236 @@
       calculateButton.style.display = "none";
       resetButton.style.display = "none";
       resultsContainer.innerHTML = "";
+
+      // Hide video wall
+      document.querySelector('.border-container').style.display = 'none';
+      // Reset video wall values 
+      window.horizontalCabinets = 1;
+      window.verticalCabinets = 1;
+
     });
   </script>
+
+
+
+  <div class="border-container" style="display: none;">
+    <div class="height-reference" style="display: none;">
+      <img src="man-standing-black-silhouette.svg" alt="Height reference" class="man-svg" />
+    </div>
+    <script>
+      (async () => {
+        let measurementUnit = 'm'; // Default unit
+        const unitConversions = {
+          mm: { factor: 1, suffix: 'mm' },
+          inches: { factor: 0.0393701, suffix: 'in' },
+          feet: { factor: 0.00328084, suffix: 'ft' },
+          m: { factor: 0.001, suffix: 'm' }
+        };
+        // Create a new PixiJS application with a fixed size
+        const app = new PIXI.Application({ width: 800, height: 600, backgroundAlpha: 0 });
+        document.querySelector(".border-container").appendChild(app.view);
+
+        // Create containers
+        const ledWallContainer = new PIXI.Container();
+        const scalesContainer = new PIXI.Container();
+        app.stage.addChild(ledWallContainer);
+        app.stage.addChild(scalesContainer);
+
+        // Load video
+        const videoElement = document.createElement("video");
+        videoElement.src = "http://192.168.1.21/Maintenance/members_ccs_files/img/hd_1920_1080_flag4.mp4";
+        videoElement.autoplay = true;
+        videoElement.muted = true;
+        videoElement.loop = true;
+        videoElement.crossOrigin = "anonymous";
+
+        // Cabinet configuration
+        let cabinetWidth = 360;
+        let cabinetHeight = 180;
+        let pixelPitch = 2;
+
+
+
+        //initial conversion (Default at mm to Ft)
+        const scaleFactor = 0.00328084;
+
+
+        let horizontalCabinets = 1;
+        let verticalCabinets = 1;
+
+        let videoSprite = null;
+        let pixelGrid = null;
+
+        function updateScales() {
+          scalesContainer.removeChildren();
+
+          const totalWidth = (cabinetWidth * horizontalCabinets);
+          const totalHeight = (cabinetHeight * verticalCabinets);
+
+          // Get bottom-left position of LED wall in screen coordinates
+          const localOrigin = new PIXI.Point(0, totalHeight);
+          const globalOrigin = ledWallContainer.toGlobal(localOrigin);
+
+          // Horizontal scale
+          const horizontalEndX = globalOrigin.x + totalWidth * ledWallContainer.scale.x;
+          const horizontalAxis = new PIXI.Graphics()
+            .lineStyle(2, 0x000000)
+            .moveTo(globalOrigin.x, globalOrigin.y)
+            .lineTo(horizontalEndX, globalOrigin.y);
+          scalesContainer.addChild(horizontalAxis);
+
+          // Horizontal ticks
+          for (let x = 0; x <= totalWidth; x += cabinetWidth) {
+            const screenX = globalOrigin.x + x * ledWallContainer.scale.x;
+            new PIXI.Graphics()
+              .lineStyle(1, 0x000000)
+              .moveTo(screenX, globalOrigin.y)
+              .lineTo(screenX, globalOrigin.y + 10)
+              .parent = scalesContainer;
+
+            const label = new PIXI.Text(`${(x * scaleFactor).toFixed(2)}ft`, { fontSize: 12, fill: 0x000000 });
+            label.position.set(screenX - 10, globalOrigin.y + 15);
+            scalesContainer.addChild(label);
+          }
+
+          // Vertical scale
+          const verticalEndY = globalOrigin.y - totalHeight * ledWallContainer.scale.y;
+          const verticalAxis = new PIXI.Graphics()
+            .lineStyle(2, 0x000000)
+            .moveTo(globalOrigin.x, globalOrigin.y)
+            .lineTo(globalOrigin.x, verticalEndY);
+          scalesContainer.addChild(verticalAxis);
+
+          // Vertical ticks
+          for (let y = 0; y <= totalHeight; y += cabinetHeight) {
+            const screenY = globalOrigin.y - y * ledWallContainer.scale.y;
+            new PIXI.Graphics()
+              .lineStyle(1, 0x000000)
+              .moveTo(globalOrigin.x, screenY)
+              .lineTo(globalOrigin.x - 10, screenY)
+              .parent = scalesContainer;
+
+            const label = new PIXI.Text(`${(y * scaleFactor).toFixed(2)}Ft`, { fontSize: 12, fill: 0x000000 });
+
+            label.anchor.set(1, 0.5);
+            label.position.set(globalOrigin.x - 15, screenY);
+            scalesContainer.addChild(label);
+          }
+        }
+
+
+        function updateCabinetDimensions(newWidth, newHeight, newHorizontalCabinets, newVerticalCabinets, newpixelPitch) {
+          cabinetWidth = newWidth;
+          cabinetHeight = newHeight;
+          horizontalCabinets = newHorizontalCabinets;
+          verticalCabinets = newVerticalCabinets;
+          pixelPitch = newpixelPitch;
+          rebuildVideoWall();
+          console.log(cabinetHeight, cabinetWidth, horizontalCabinets, verticalCabinets, pixelPitch);
+        }
+
+        window.updateCabinetDimensions = updateCabinetDimensions;
+
+        const MAX_RESOLUTION = { WIDTH: 1920, HEIGHT: 1080 };
+        function rebuildVideoWall() {
+          // Clear previous elements
+          if (videoSprite) ledWallContainer.removeChild(videoSprite);
+          if (pixelGrid) ledWallContainer.removeChild(pixelGrid);
+
+          // Calculate total dimensions
+          const totalWidth = cabinetWidth * horizontalCabinets;
+          const totalHeight = cabinetHeight * verticalCabinets;
+
+          // Create video sprite
+          videoSprite = new PIXI.Sprite(PIXI.Texture.from(videoElement));
+          videoSprite.width = totalWidth;
+          videoSprite.height = totalHeight;
+          ledWallContainer.addChild(videoSprite);
+
+          // Calculate effective resolution
+          const actualPixelColumns = totalWidth / pixelPitch;
+          const actualPixelRows = totalHeight / pixelPitch;
+
+          console.log("actualPixelColumns: ", actualPixelColumns, "actualPixelRows: ", actualPixelRows);
+
+          // Determine grid resolution scaling factor
+          const columnScale = Math.max(1, Math.ceil(actualPixelColumns / MAX_RESOLUTION.WIDTH));
+          const rowScale = Math.max(1, Math.ceil(actualPixelRows / MAX_RESOLUTION.HEIGHT));
+
+          // Calculate effective grid spacing
+          const gridPitchX = pixelPitch * columnScale;
+          const gridPitchY = pixelPitch * rowScale;
+
+          console.log("ColumnSCale", columnScale, "RowScale", rowScale);
+
+          // Create pixel grid mask
+          pixelGrid = new PIXI.Graphics();
+          for (let v = 0; v < verticalCabinets; v++) {
+            for (let h = 0; h < horizontalCabinets; h++) {
+              const baseX = h * cabinetWidth;
+              const baseY = v * cabinetHeight;
+
+
+              // Draw grid with scaled resolution
+              for (let y = 0; y < cabinetHeight; y += gridPitchY) {
+                for (let x = 0; x < cabinetWidth; x += gridPitchX) {
+                  pixelGrid.beginFill(0x000000);
+                  pixelGrid.drawRect(
+                    baseX + x,
+                    baseY + y,
+                    Math.min(gridPitchX, cabinetWidth - x),
+                    Math.min(gridPitchY, cabinetHeight - y)
+                  );
+                  pixelGrid.endFill();
+                }
+              }
+            }
+          }
+
+          console.log("gridPitchX: ", gridPitchX, "gridPitchY: ", gridPitchY);
+
+          ledWallContainer.addChild(pixelGrid);
+          videoSprite.mask = pixelGrid;
+
+          const targetScale = 0.8
+
+          // Adjust scaling and position
+          const scaleX = (app.renderer.width * targetScale) / totalWidth;
+          const scaleY = (app.renderer.height * targetScale) / totalHeight;
+          const minScale = Math.min(scaleX, scaleY);
+
+          ledWallContainer.scale.set(minScale);
+          ledWallContainer.x = (app.renderer.width - totalWidth * minScale) / 2;
+          ledWallContainer.y = (app.renderer.height - totalHeight * minScale) / 2;
+
+          updateScales();
+        }
+
+        // Initialize when video loads
+        videoElement.onloadeddata = () => {
+          rebuildVideoWall();
+          videoElement.play();
+        };
+
+        // Cabinet control functions
+        window.addCabinet = (direction) => {
+          if (direction === 'horizontal') horizontalCabinets++;
+          else if (direction === 'vertical') verticalCabinets++;
+          rebuildVideoWall();
+        };
+
+        window.removeCabinet = (direction) => {
+          if (direction === 'horizontal' && horizontalCabinets > 1) horizontalCabinets--;
+          else if (direction === 'vertical' && verticalCabinets > 1) verticalCabinets--;
+          rebuildVideoWall();
+        };
+
+
+      })();
+    </script>
+  </div>
+
+
 </body>
+
 </html>
