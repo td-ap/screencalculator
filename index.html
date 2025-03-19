@@ -287,8 +287,9 @@
 
 
   <div class="border-container" style="display: none;">
-    <div class="height-reference" style="display: none;">
-      <img src="man-standing-black-silhouette.svg" alt="Height reference" class="man-svg" />
+    <div class="height-reference">
+      <h3>Height Reference: 6FT</h3>
+      <img src="man-standing-black-silhouette.svg" id="lildude" alt="Height reference" class="man-svg" />
     </div>
     <script>
       (async () => {
@@ -353,7 +354,8 @@
           scalesContainer.addChild(horizontalAxis);
 
           // Horizontal ticks
-          for (let x = 0; x <= totalWidth; x += cabinetWidth) {
+          // Horizontal ticks - Only at start, middle, and end
+          [0, totalWidth / 2, totalWidth].forEach(x => {
             const screenX = globalOrigin.x + x * ledWallContainer.scale.x;
             new PIXI.Graphics()
               .lineStyle(1, 0x000000)
@@ -361,10 +363,13 @@
               .lineTo(screenX, globalOrigin.y + 10)
               .parent = scalesContainer;
 
-            const label = new PIXI.Text(`${(x * scaleFactor).toFixed(2)}ft`, { fontSize: 12, fill: 0x000000 });
+            const label = new PIXI.Text(`${(x * scaleFactor).toFixed(2)}ft`, {
+              fontSize: 12,
+              fill: 0x000000
+            });
             label.position.set(screenX - 10, globalOrigin.y + 15);
             scalesContainer.addChild(label);
-          }
+          });
 
           // Vertical scale
           const verticalEndY = globalOrigin.y - totalHeight * ledWallContainer.scale.y;
@@ -375,7 +380,8 @@
           scalesContainer.addChild(verticalAxis);
 
           // Vertical ticks
-          for (let y = 0; y <= totalHeight; y += cabinetHeight) {
+          // Vertical ticks - Only at start, middle, and end
+          [0, totalHeight / 2, totalHeight].forEach(y => {
             const screenY = globalOrigin.y - y * ledWallContainer.scale.y;
             new PIXI.Graphics()
               .lineStyle(1, 0x000000)
@@ -383,12 +389,17 @@
               .lineTo(globalOrigin.x - 10, screenY)
               .parent = scalesContainer;
 
-            const label = new PIXI.Text(`${(y * scaleFactor).toFixed(2)}Ft`, { fontSize: 12, fill: 0x000000 });
-
+            const label = new PIXI.Text(`${(y * scaleFactor).toFixed(2)}ft`, {
+              fontSize: 12,
+              fill: 0x000000
+            });
             label.anchor.set(1, 0.5);
             label.position.set(globalOrigin.x - 15, screenY);
             scalesContainer.addChild(label);
-          }
+          });
+          const sixFeetInMM = 6 / scaleFactor; // Convert 6 feet to mm
+          const sixFeetInPixels = sixFeetInMM * ledWallContainer.scale.y;
+          document.getElementById('lildude').style.height = `${sixFeetInPixels}px`;
         }
 
 
@@ -475,6 +486,14 @@
           ledWallContainer.scale.set(minScale);
           ledWallContainer.x = (app.renderer.width - totalWidth * minScale) / 2;
           ledWallContainer.y = (app.renderer.height - totalHeight * minScale) / 2;
+
+          const ledWallBottomY = ledWallContainer.y + (totalHeight * ledWallContainer.scale.y);
+          const bottomPosition = app.renderer.height - ledWallBottomY;
+
+          const lildude = document.getElementById('lildude');
+          lildude.style.position = 'absolute';
+          lildude.style.left = '100px';
+          lildude.style.bottom = `${bottomPosition}px`;
 
           updateScales();
         }

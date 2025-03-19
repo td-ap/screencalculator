@@ -108,14 +108,31 @@ p {
   font-size: 16px;
 }
 
-.border-container{
-  border: 1px solid #c3e6cb;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 10px;
+/* Add/modify these rules */
+.border-container {
+  position: relative;
+  align-items: flex-end;
+  /* Aligns items at the bottom */
+}
+
+.height-reference {
+  flex-shrink: 0;
+  /* Prevents SVG container from shrinking */
   display: flex;
+  align-items: flex-end;
+  /* Aligns SVG to bottom of container */
+  margin-left: 20px;
+  /* Adds left margin */
+  width: 200px !important;
+}
+
+.man-svg {
+  position: absolute;
+  /* Maintain aspect ratio */
 
 }
+
+
 
 
 /* Responsive Design */
@@ -131,5 +148,22 @@ p {
 
   #results-container {
     padding: 15px;
+  }
+
+  .border-container {
+    flex-direction: column;
+    /* Stack vertically on mobile */
+    align-items: center;
+  }
+
+  .height-reference {
+    margin: 0 0 20px 0;
+    /* Adjust spacing for mobile */
+    order: -1;
+    /* Put SVG above canvas on mobile */
+  }
+
+  .man-svg {
+    margin-top: 0;
   }
 }
